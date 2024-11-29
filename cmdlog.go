@@ -14,7 +14,7 @@ import (
 	"regexp"
 )
 
-var VERSION = "1.0.0"
+var VERSION = "1.0.1"
 
 func main() {
 	// Parse options (if any)
