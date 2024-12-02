@@ -4,14 +4,15 @@ package main
 // Color is not preserved...
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/exec"
-	"strings"
 	"regexp"
+	"strings"
 )
 
 var VERSION = "1.0.1"
@@ -24,9 +25,9 @@ func main() {
 	args := flag.Args()
 	if len(args) < 1 {
 		fmt.Println("Usage: cmdlog [OPTION...] CMD [CMD OPTION...]")
-    fmt.Println("cmdlog prints to stdout and stderr and logs to a logfile. Easy to use,")
-    fmt.Println("easy to document.")
-    fmt.Printf("\ncmdlog v%s was created by Malte Gejr <malte@gejr.dk>\n", VERSION)
+		fmt.Println("cmdlog prints to stdout and stderr and logs to a logfile. Easy to use,")
+		fmt.Println("easy to document.")
+		fmt.Printf("\ncmdlog v%s was created by Malte Gejr <malte@gejr.dk>\n", VERSION)
 		os.Exit(1)
 	}
 
@@ -48,8 +49,8 @@ func main() {
 	logger := log.New(io.MultiWriter(os.Stdout, logFile), "", log.LstdFlags)
 
 	// Print the CMD and CMD OPTIONS to the log file and stdout
- 	cmdLine := fmt.Sprintf("%s %s", cmdName, strings.Join(cmdArgs, " "))
- 	fmt.Fprintf(logFile, "%s\n\n", cmdLine)
+	cmdLine := fmt.Sprintf("%s %s", cmdName, strings.Join(cmdArgs, " "))
+	fmt.Fprintf(logFile, "%s\n\n", cmdLine)
 
 	// Set up the command to execute
 	cmd := exec.Command(cmdName, cmdArgs...)
@@ -60,6 +61,10 @@ func main() {
 	cmdStderr, err := cmd.StderrPipe()
 	if err != nil {
 		logger.Fatalf("Error setting up stderr pipe: %v", err)
+	}
+	cmdStdin, err := cmd.StdinPipe() // Create stdin pipe for the command
+	if err != nil {
+		logger.Fatalf("Error setting up stdin pipe: %v", err)
 	}
 
 	// Start the command
@@ -74,6 +79,29 @@ func main() {
 	}()
 	go func() {
 		_, _ = io.Copy(logger.Writer(), cmdStderr)
+	}()
+
+	// Create a goroutine to handle user input and send it to both the command's stdin and the log file
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			// Write user input to the log file
+			_, err := fmt.Fprintf(logFile, "%s\n", scanner.Text())
+			if err != nil {
+				logger.Printf("Error writing to log file: %v", err)
+				break
+			}
+
+			// Write user input to the command's stdin
+			_, err = cmdStdin.Write([]byte(scanner.Text() + "\n"))
+			if err != nil {
+				logger.Printf("Error writing to stdin: %v", err)
+				break
+			}
+		}
+		if scanner.Err() != nil {
+			logger.Printf("Error reading from stdin: %v", scanner.Err())
+		}
 	}()
 
 	// Wait for the command to finish
@@ -126,4 +154,3 @@ func sanitizeFilename(s string) string {
 
 	return s
 }
-
