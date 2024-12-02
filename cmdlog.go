@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-var VERSION = "1.0.1"
+var VERSION = "1.1.0"
 
 func main() {
 	// Parse options (if any)
